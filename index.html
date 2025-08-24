@@ -1,0 +1,1166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Lost at Sea: A Survival Simulation (Team Activity)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <!--
+        Copyright (c) 2025 [Pinky]
+        This work is licensed under a Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International License.
+        You should have received a copy of the license along with this work. If not, see <http://creativecommons.org/licenses/by-nc-sa/4.0/>.
+    -->
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;700&display=swap');
+        html, body {
+            overscroll-behavior-y: contain;
+            height: 100%;
+            width: 100%;
+            overflow: hidden;
+            background-color: #030712;
+        }
+        body {
+            font-family: 'Noto Sans', sans-serif;
+            color: #e6f1ff;
+            background-image: linear-gradient(to top, rgba(3, 7, 18, 0.9), rgba(3, 7, 18, 1)), url('https://www.transparenttextures.com/patterns/wavecut.png');
+        }
+        #app-wrapper {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow-y: auto;
+        }
+        #app-container {
+             background-color: rgba(15, 23, 42, 0.85); /* slate-900 with opacity */
+        }
+        .screen { display: none; }
+        .active-screen { display: block; }
+        .drag-handle {
+            cursor: grab;
+            padding: 0.5rem;
+            color: #94a3b8;
+        }
+        .drag-handle:hover {
+            color: #e2e8f0;
+        }
+        .sortable-ghost {
+            background: #334155;
+            opacity: 0.5;
+        }
+        .modal-base {
+            position: fixed;
+            z-index: 100;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.7);
+            padding: 1rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.2s ease, visibility 0s 0.2s;
+        }
+        .modal-base.show {
+            opacity: 1;
+            visibility: visible;
+            transition: opacity 0.2s ease;
+        }
+        .modal-content {
+            position: relative;
+            margin: auto;
+            padding: 2rem;
+            width: 95%;
+            max-width: 500px;
+            transform: scale(0.95);
+            transition: transform 0.2s ease;
+        }
+        .modal-base.show .modal-content {
+            transform: scale(1);
+        }
+        #emergency-screen {
+            background-color: #000;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: none;
+            z-index: 200;
+        }
+        #emergency-message-container p {
+            opacity: 0;
+            animation: fadeIn 1.5s forwards;
+        }
+        @keyframes fadeIn {
+            to { opacity: 1; }
+        }
+        .rank-slot.empty {
+            cursor: pointer;
+            border-style: dashed;
+        }
+        .rank-slot.empty:hover {
+            background-color: #1e293b; /* slate-800 */
+        }
+    </style>
+</head>
+<body class="p-2 sm:p-4">
+
+    <!-- Fullscreen Button -->
+    <button id="fullscreen-btn" class="fixed top-4 right-4 z-50 p-2 bg-slate-700/50 hover:bg-slate-600/70 rounded-full text-white transition">
+        <svg id="fs-enter-icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 19.5L9 15m0 0H4.5m4.5 0V19.5"/><path d="M19.5 4.5L15 9m0 0h4.5M15 9V4.5"/><path d="M19.5 19.5L15 15m0 0h4.5m-4.5 0V19.5"/><path d="M4.5 4.5L9 9m0 0H4.5M9 9V4.5"/></svg>
+        <svg id="fs-exit-icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="hidden"><path d="M9 15l-6 6m6-6v4.5m0-4.5H4.5"/><path d="M15 9l6-6m-6 6V4.5m0 4.5h4.5"/><path d="M15 15l6 6m-6-6v4.5m0-4.5h4.5"/><path d="M9 9l-6-6m6 6V4.5m0-4.5H4.5"/></svg>
+    </button>
+
+    <div id="app-wrapper">
+        <div id="app-container" class="w-full max-w-7xl mx-auto backdrop-blur-sm rounded-2xl shadow-2xl p-4 sm:p-6 md:p-8">
+
+            <!-- Screen 0: Welcome Screen -->
+            <div id="welcome-screen" class="screen active-screen text-center">
+                <h1 class="text-3xl sm:text-4xl md:text-5xl font-bold text-white mb-6">Lost at Sea</h1>
+                <p class="text-lg sm:text-xl text-slate-300 mb-8 max-w-3xl mx-auto break-keep">
+                    Welcome to the collaborative learning activity for surviving at sea.
+                </p>
+
+                <div class="max-w-3xl mx-auto text-left bg-slate-800/50 p-6 rounded-lg mb-8 space-y-6">
+                    <div>
+                        <h2 class="text-2xl font-bold text-cyan-300 mb-3">Lesson Objective</h2>
+                        <p class="break-keep text-slate-300">
+                            Experience the process of making rational decisions based on given information (expert knowledge), and develop collaborative skills to achieve the best results through discussion with team members.
+                        </p>
+                    </div>
+                    <div>
+                        <h2 class="text-2xl font-bold text-cyan-300 mb-3">Activity Guide</h2>
+                        <div class="space-y-3 text-slate-300">
+                            <p class="break-keep"><b>[Activity 1] Form Individual Opinions:</b> Enter your team and name, and choose a field of expertise. Rank the necessary survival items based on the expert knowledge you've acquired.</p>
+                            <p class="break-keep"><b>[Activity 2] Coordinate Team Opinions:</b> Share and discuss your rankings and reasoning with your team members. Through discussion, decide on your team's final ranking.</p>
+                            <p class="break-keep"><b>[Check Results]</b> Compare your individual and team rankings with the Coast Guard expert's answers, and reflect on a better decision-making process.</p>
+                        </div>
+                    </div>
+                    <div>
+                        <h3 class="text-xl font-bold text-yellow-300 mb-2">Please Read!</h3>
+                        <p class="text-slate-400 break-keep">The effectiveness of collaboration increases when team members choose different areas of expertise. Instead of insisting on your own opinion, try to make rational decisions by respecting and listening to the expertise of other team members.</p>
+                    </div>
+                </div>
+
+                <button id="start-class-btn" class="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-lg sm:text-xl py-3 px-8 rounded-lg transition-transform transform hover:scale-105">
+                    Start Class
+                </button>
+
+                <div class="mt-8 border-t border-slate-700 pt-6">
+                     <p class="text-slate-400 mb-2">※ This is the team activity version.</p>
+                    <a href="https://sea-survival-eng.pages.dev" target="_blank" rel="noopener noreferrer" class="text-sky-400 hover:text-sky-300 underline">
+                         Experience the Individual Activity Version
+                    </a>
+                </div>
+            </div>
+
+            <!-- Screen 1: Setup Screen -->
+            <div id="setup-screen" class="screen text-center">
+                <h1 class="text-3xl sm:text-4xl md:text-5xl font-bold text-white mb-4">Enter Passenger Information</h1>
+                 <p class="text-base sm:text-lg md:text-xl text-slate-300 mb-8 max-w-3xl mx-auto break-keep">
+                     Please enter your affiliation and information.
+                 </p>
+                <div class="max-w-sm mx-auto mb-8 space-y-4">
+                    <div>
+                        <label for="groupNameInput" class="block mb-2 text-sm font-medium text-slate-300">Enter your affiliation</label>
+                        <input type="text" id="groupNameInput" class="bg-slate-800 border border-slate-700 text-white text-sm rounded-lg focus:ring-emerald-500 focus:border-emerald-500 block w-full p-2.5" placeholder="e.g., Team 1, Blue Middle School" required>
+                    </div>
+                    <div>
+                        <label for="studentNumberInput" class="block mb-2 text-sm font-medium text-slate-300">Select your number</label>
+                        <select id="studentNumberInput" class="bg-slate-800 border border-slate-700 text-white text-sm rounded-lg focus:ring-emerald-500 focus:border-emerald-500 block w-full p-2.5" required>
+                            <!-- Options will be populated by JS -->
+                        </select>
+                    </div>
+                    <div>
+                        <label for="studentNameInput" class="block mb-2 text-sm font-medium text-slate-300">Enter your name</label>
+                        <input type="text" id="studentNameInput" class="bg-slate-800 border border-slate-700 text-white text-sm rounded-lg focus:ring-emerald-500 focus:border-emerald-500 block w-full p-2.5" placeholder="e.g., Captain Kim" required>
+                    </div>
+                </div>
+                <button id="start-mission-btn" class="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-lg sm:text-xl py-3 px-8 rounded-lg transition-transform transform hover:scale-105">
+                    Start Voyage
+                </button>
+            </div>
+            
+            <!-- Screen 1.8: Activity Guide -->
+            <div id="activity-guide-screen" class="screen text-center">
+                <h2 class="text-3xl sm:text-4xl font-bold text-white mb-8">Activity Guide</h2>
+                <div class="max-w-3xl mx-auto text-left bg-slate-800/50 p-6 sm:p-8 rounded-2xl mb-10 space-y-8">
+                    <div>
+                        <h3 class="font-bold text-cyan-300 text-2xl mb-3">💯 How to Calculate Score</h3>
+                        <p class="text-slate-300 break-keep leading-relaxed">
+                            The final score is calculated by summing the absolute differences between the expert rankings and your rankings.<br>
+                            (e.g., Expert 1st, My 3rd → 2 points / Expert 8th, My 2nd → 6 points) (Total Score: 2+6 = 8 points)<br>
+                            <span class="font-bold text-yellow-300">The lower the score, the higher the chance of survival!</span>
+                        </p>
+                    </div>
+                    <hr class="border-slate-700">
+                    <div>
+                        <h3 class="font-bold text-cyan-300 text-2xl mb-3">✍️ Guide to Writing Reasons</h3>
+                        <p class="text-slate-300 break-keep leading-relaxed">
+                            Writing a 'reason' for each item's rank is an important part of showing your logical thinking process.<br>
+                            Since this is a class activity, <b class="text-yellow-300">you must write down why you think so.</b><br>
+                            <span class="font-bold text-slate-100">Your written reasons will be crucial evidence for persuading your teammates later.</span>
+                        </p>
+                    </div>
+                </div>
+                <button id="go-to-role-selection-btn" class="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-lg sm:text-xl py-3 px-8 rounded-lg transition-transform transform hover:scale-105">
+                    Choose Your Role
+                </button>
+            </div>
+
+            <!-- Screen 2: Role Selection -->
+            <div id="role-screen" class="screen">
+                <h2 class="text-2xl sm:text-3xl font-bold text-center mb-6">Who are you?</h2>
+                <p class="text-center text-slate-300 mb-8 break-keep">When you select a role, you will gain that role's experience and knowledge.</p>
+                
+                <div class="max-w-3xl mx-auto mb-8 p-4 bg-yellow-900/50 border border-yellow-700 rounded-lg text-yellow-300 text-sm break-keep">
+                    <h3 class="font-bold mb-2">▲ Please read before choosing a role!</h3>
+                    <p>Role knowledge is just <b class="font-bold">fragmentary information</b> about survival. Just because a specific item is mentioned doesn't mean it's necessarily a high-priority item; it could even be a low-priority one.</p>
+                    <p class="mt-1">The expert's correct ranking does not change regardless of which role you choose.</p>
+                </div>
+
+                <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
+                    <!-- Roles will be populated by JS -->
+                </div>
+            </div>
+            
+            <!-- Screen 3: Knowledge Briefing -->
+            <div id="knowledge-screen" class="screen">
+                <h2 class="text-2xl sm:text-3xl font-bold text-center mb-2">Knowledge Briefing</h2>
+                <p id="role-title" class="text-center text-amber-400 font-bold text-lg mb-6"></p>
+                <div id="knowledge-list" class="bg-slate-800 p-4 sm:p-6 rounded-lg grid grid-cols-1 md:grid-cols-2 gap-4 text-slate-300 max-h-[60vh] sm:max-h-[65vh] overflow-y-auto">
+                    <!-- Knowledge items will be injected here by JS -->
+                </div>
+                <div class="text-center mt-8">
+                    <button id="go-to-ranking-btn" class="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-lg sm:text-xl py-3 px-8 rounded-lg transition-transform transform hover:scale-105">
+                        Set Priorities
+                    </button>
+                </div>
+            </div>
+
+            <!-- Screen 4: Main Ranking Activity (Individual) -->
+            <div id="main-screen" class="screen">
+                <div class="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
+                    <h2 class="text-2xl sm:text-3xl font-bold text-center flex-grow">[Individual] Set Survival Priorities</h2>
+                    <button id="open-knowledge-modal-btn" class="w-full sm:w-auto bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg text-sm flex-shrink-0">
+                        Review My Info 🧠
+                    </button>
+                </div>
+                <!-- ADDED: Tip box for individual ranking -->
+                <div class="max-w-3xl mx-auto mb-4 p-3 bg-sky-900/50 border border-sky-700 rounded-lg text-sky-300 text-sm break-keep text-center">
+                    <p>💡 <b>Tip for using My Info:</b> My Info is a <b>reference</b> to help you make rational decisions. The items mentioned are not necessarily the correct answers, so comprehensive judgment is important.</p>
+                </div>
+                <div id="rank-list" class="w-full bg-slate-900 p-4 rounded-lg min-h-[55vh] space-y-3 max-h-[55vh] sm:max-h-[60vh] overflow-y-auto">
+                   <!-- Ranking slots will be generated here -->
+                </div>
+                 <div class="text-center mt-8">
+                     <button id="finish-individual-button" class="w-full sm:w-auto bg-green-600 hover:bg-green-700 text-white font-bold text-lg sm:text-xl py-3 px-8 rounded-lg transition-transform transform hover:scale-105 disabled:bg-gray-500 disabled:cursor-not-allowed" disabled>
+                         Submit Individual Ranking <span id="finish-individual-button-counter">(0/15)</span>
+                     </button>
+                 </div>
+            </div>
+
+            <!-- Screen 4.5: Discussion Guide -->
+            <div id="discussion-guide-screen" class="screen">
+                <div class="text-center">
+                    <h2 class="text-3xl sm:text-4xl font-bold text-white mb-8">🤝 Mindset for a Successful Discussion</h2>
+                    <div class="max-w-3xl mx-auto text-left bg-slate-800/50 p-6 sm:p-8 rounded-2xl mb-10 space-y-5">
+                        <div class="flex items-start gap-4">
+                            <span class="text-2xl pt-1">👂</span>
+                            <div>
+                                <h3 class="font-bold text-cyan-300 text-xl">Listen Actively</h3>
+                                <p class="text-slate-300 break-keep">Listen to and respect your teammates' opinions until they are finished.</p>
+                            </div>
+                        </div>
+                        <div class="flex items-start gap-4">
+                            <span class="text-2xl pt-1">💡</span>
+                            <div>
+                                <h3 class="font-bold text-cyan-300 text-xl">Provide Evidence</h3>
+                                <p class="text-slate-300 break-keep">When making a claim, clearly explain your reasoning by starting with 'because'.</p>
+                            </div>
+                        </div>
+                        <div class="flex items-start gap-4">
+                            <span class="text-2xl pt-1">💬</span>
+                            <div>
+                                <h3 class="font-bold text-cyan-300 text-xl">Speak Your Mind Confidently</h3>
+                                <p class="text-slate-300 break-keep">It's important to confidently share your opinion with supporting reasons, rather than just listening quietly.</p>
+                            </div>
+                        </div>
+                        <div class="flex items-start gap-4">
+                            <span class="text-2xl pt-1">🤔</span>
+                            <div>
+                                <h3 class="font-bold text-cyan-300 text-xl">Critique Rationally</h3>
+                                <p class="text-slate-300 break-keep">If you disagree, try to persuade with valid reasons instead of emotional criticism.</p>
+                            </div>
+                        </div>
+                        <div class="flex items-start gap-4">
+                            <span class="text-2xl pt-1">🤝</span>
+                            <div>
+                                <h3 class="font-bold text-cyan-300 text-xl">Find the Best Solution</h3>
+                                <p class="text-slate-300 break-keep">Work together to find the best way for your team to survive!</p>
+                            </div>
+                        </div>
+                    </div>
+                    <button id="go-to-group-ranking-btn" class="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-lg sm:text-xl py-3 px-8 rounded-lg transition-transform transform hover:scale-105">
+                        Start Team Discussion
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Screen 5: Group Ranking Activity -->
+            <div id="group-ranking-screen" class="screen">
+                <div class="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
+                    <h2 class="text-2xl sm:text-3xl font-bold text-center flex-grow">[Team] Set Survival Priorities</h2>
+                     <button id="open-knowledge-modal-btn-group" class="w-full sm:w-auto bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg text-sm flex-shrink-0">
+                         Review My Info 🧠
+                     </button>
+                </div>
+                <!-- ADDED: Tip box for group ranking -->
+                <div class="max-w-3xl mx-auto mb-4 p-3 bg-sky-900/50 border border-sky-700 rounded-lg text-sky-300 text-sm break-keep text-center">
+                    <p>💡 <b>Tip for using My Info:</b> My Info is a <b>reference</b> to help you make rational decisions. The items mentioned are not necessarily the correct answers, so comprehensive judgment is important.</p>
+                </div>
+                <div id="group-rank-list" class="w-full bg-slate-900 p-4 rounded-lg min-h-[55vh] space-y-3 max-h-[55vh] sm:max-h-[60vh] overflow-y-auto">
+                    <!-- Group ranking slots will be generated here -->
+                </div>
+                 <div class="text-center mt-8">
+                     <button id="finish-group-button" class="w-full sm:w-auto bg-green-600 hover:bg-green-700 text-white font-bold text-lg sm:text-xl py-3 px-8 rounded-lg transition-transform transform hover:scale-105 disabled:bg-gray-500 disabled:cursor-not-allowed" disabled>
+                         Create Final Report <span id="finish-group-button-counter">(0/15)</span>
+                     </button>
+                 </div>
+            </div>
+
+            <!-- Screen 6: Final Report -->
+            <div id="report-screen" class="screen">
+                <div id="report-content" class="p-2">
+                    <h2 class="text-2xl sm:text-3xl font-bold text-center mb-4">Sea Survival Report</h2>
+                    <div class="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-center text-slate-300 mb-6">
+                        <div class="flex items-center gap-x-1.5">
+                            <span class="font-semibold text-slate-400">Affiliation:</span>
+                            <span id="final-group-name" class="font-bold text-cyan-400"></span>
+                        </div>
+                        <div class="flex items-center gap-x-1.5">
+                            <span class="font-semibold text-slate-400">Name:</span>
+                            <span id="final-student-number" class="font-bold text-cyan-400"></span>
+                            <span id="final-student-name" class="font-bold text-cyan-400"></span>
+                        </div>
+                        <div class="flex items-center gap-x-1.5">
+                            <span class="font-semibold text-slate-400">Role:</span>
+                            <span id="final-role" class="font-bold text-amber-400"></span>
+                        </div>
+                    </div>
+                     <div id="score-summary-container" class="bg-slate-900/50 p-4 rounded-lg">
+                             <!-- Score and evaluation will be injected here -->
+                    </div>
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+                        <!-- Individual Report -->
+                        <div class="bg-slate-900/50 p-4 rounded-lg flex flex-col">
+                            <h3 class="text-xl font-bold text-center mb-4 text-yellow-300">My Survival Plan</h3>
+                            <div id="individual-score-summary" class="text-center mb-4"></div>
+                            <div id="individual-final-list" class="space-y-2 flex-grow overflow-y-auto bg-slate-800 p-3 rounded-md max-h-[45vh] lg:max-h-[50vh]"></div>
+                        </div>
+                        <!-- Group Report -->
+                         <div class="bg-slate-900/50 p-4 rounded-lg flex flex-col">
+                            <h3 class="text-xl font-bold text-center mb-4 text-teal-300">Our Team's Survival Plan</h3>
+                            <div id="group-score-summary" class="text-center mb-4"></div>
+                            <div id="group-final-list" class="space-y-2 flex-grow overflow-y-auto bg-slate-800 p-3 rounded-md max-h-[45vh] lg:max-h-[50vh]"></div>
+                        </div>
+                    </div>
+                </div>
+                 <div class="text-center mt-6 flex flex-col sm:flex-row sm:justify-center gap-2 sm:gap-4">
+                     <button id="open-save-share-modal-btn" class="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white font-bold text-lg sm:text-xl py-3 px-8 rounded-lg transition-transform transform hover:scale-105">
+                         Save Result
+                     </button>
+                    <a href="https://pinkylucky.tistory.com/8" target="_blank" rel="noopener noreferrer" class="inline-block w-full sm:w-auto bg-teal-600 hover:bg-teal-700 text-white font-bold text-lg sm:text-xl py-3 px-8 rounded-lg transition">
+                        View Expert Explanation
+                    </a>
+                    <button id="restart-btn" class="w-full sm:w-auto bg-gray-500 hover:bg-gray-600 text-white font-bold text-lg sm:text-xl py-3 px-8 rounded-lg transition-transform transform hover:scale-105">
+                        Restart
+                    </button>
+                 </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Screen 1.5: Emergency Sequence -->
+    <div id="emergency-screen" class="flex flex-col items-center justify-center p-8">
+        <div id="emergency-message-container" class="text-white text-xl sm:text-2xl md:text-3xl font-bold text-center space-y-6">
+            <!-- Messages will be injected here -->
+        </div>
+        <button id="skip-emergency-btn" class="absolute top-5 right-5 bg-gray-700 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-lg z-10">SKIP</button>
+        <button id="proceed-to-guide-btn" class="mt-8 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 px-6 rounded-lg hidden transition-opacity animate-pulse">
+            Check Activity Guide
+        </button>
+    </div>
+
+    <!-- Modals and Global Buttons -->
+    <div id="global-buttons" class="fixed bottom-5 left-5 right-5 flex justify-between items-center z-50 pointer-events-none">
+        <button id="back-to-start-btn" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-full shadow-lg transition-transform hover:scale-105 hidden pointer-events-auto">Start Over</button>
+        <button id="exit-app-btn" class="bg-red-800 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-full shadow-lg transition-transform hover:scale-105 hidden pointer-events-auto ml-auto">Exit</button>
+    </div>
+    
+    <!-- Item Info Modal -->
+    <div id="item-info-modal" class="modal-base">
+        <div class="modal-content bg-slate-900 rounded-lg border border-slate-700">
+            <span class="close-modal-btn absolute top-4 right-5 text-3xl font-bold cursor-pointer hover:text-red-500">&times;</span>
+            <div id="item-info-modal-body" class="text-white"></div>
+        </div>
+    </div>
+    
+    <!-- Item Selection Modal -->
+    <div id="item-selection-modal" class="modal-base">
+        <div class="modal-content bg-slate-900 rounded-lg border border-slate-700">
+             <span class="close-modal-btn absolute top-4 right-5 text-3xl font-bold cursor-pointer hover:text-red-500">&times;</span>
+            <h3 class="text-2xl font-bold mb-4 text-center text-emerald-400">Select an Available Item</h3>
+            <div id="item-selection-modal-body" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 max-h-[60vh] overflow-y-auto p-2"></div>
+        </div>
+    </div>
+
+    <!-- Save/Share Modal -->
+    <div id="save-share-modal" class="modal-base">
+        <div class="modal-content bg-slate-900 rounded-lg border border-slate-700 text-center">
+            <span class="close-modal-btn absolute top-4 right-5 text-3xl font-bold cursor-pointer hover:text-red-500">&times;</span>
+            <h3 class="text-2xl font-bold mb-6 text-emerald-400">Save & Share Result</h3>
+            <div class="flex flex-col gap-4">
+                <button id="save-image-btn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg transition-all">🖼️ Save as Image</button>
+                <button id="share-image-btn" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-lg transition-all">🔗 Share</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Knowledge Modal -->
+    <div id="knowledge-modal" class="modal-base">
+        <div class="modal-content bg-slate-900 rounded-lg border border-slate-700">
+            <span class="close-modal-btn absolute top-4 right-5 text-3xl font-bold cursor-pointer hover:text-red-500">&times;</span>
+            <div id="knowledge-modal-body" class="text-white"></div>
+        </div>
+    </div>
+
+    <!-- General Alert/Confirm Modal -->
+    <div id="alert-confirm-modal" class="modal-base">
+        <div class="modal-content bg-slate-900 rounded-lg border border-slate-700 text-center max-w-md">
+            <h3 id="alert-confirm-title" class="text-xl font-bold mb-4 text-yellow-300"></h3>
+            <p id="alert-confirm-message" class="text-slate-300 mb-6 whitespace-pre-wrap"></p>
+            <div id="alert-confirm-buttons" class="flex justify-center gap-4"></div>
+        </div>
+    </div>
+    
+    <audio id="bg-music" loop></audio>
+
+    <script>
+    (function() {
+        // --- App State and Data ---
+        const SAVE_KEY = 'sea-survival-team-v1.0-eng';
+        const APP_VERSION = 'sea-team-1.0-eng';
+
+        let emergencySequenceTimeoutId = null;
+        let activeSelectionContext = { type: null, slotIndex: null };
+        
+        const appData = {
+            getEmergencyMessages: (state) => [
+                "Warning. Warning. Fire on board.",
+                "Navigation and communication equipment failure confirmed.",
+                "The yacht is slowly sinking.",
+                `'${state.groupName || 'Survivor Group'}', respond!`,
+                "The nearest land is approximately 1,600 km away.",
+                `'${state.studentName || 'Survivor'}', everyone's survival depends on your judgment.`,
+                "Rank the 15 emergency items for survival.",
+                "You must... you must survive!"
+            ],
+            roles: {
+                influencer: { name: '💅 SNS Influencer', imageUrl: 'influencer.png', description: "You have a knack for creating 'likeable' content in any situation.", info: [ "Reflecting sunlight with a shiny object can catch the eye of someone very far away.", "Dehydration is the fast track to skin aging.", "Sweet food can temporarily relieve a depressed mood.", "Direct exposure to strong sunlight accelerates dehydration, so it's important to create shade and protect your body.", "In any situation, items with a 'story' get attention.", "Nowadays, live streaming from the middle of the ocean is the trend." ] },
+                trainer: { name: '💪 Fitness Trainer', imageUrl: 'trainer.png', description: "You have knowledge about the limits of the human body and maintaining physical fitness.", info: [ "Alcohol dilates the blood vessels near the skin, causing body heat to escape more quickly.", "If your body is wet, you can lose body heat more than 20 times faster than when you're dry.", "Even when you're still, your body continuously loses water.", "Sugar provides a quick burst of energy, but the effect doesn't last long.", "Exposing a wound to seawater carries a very high risk of infection.", "Long-distance swimming is the best exercise for improving cardiovascular endurance." ] },
+                angler: { name: '🎣 Fishing Enthusiast', imageUrl: 'angler.png', description: "You have extensive practical experience with the sea and fish.", info: [ "Even if you can only catch a very small fish, you can use it as bait to attract bigger fish.", "A strong smell in the water can attract fish from far away.", "The body fluids of most fish have a lower salinity than seawater.", "Sharks are very sensitive not only to the smell of blood but also to unnatural vibrations in the water.", "In the ocean, even small floating objects tend to attract fish.", "The legendary 'Blue Marlin' can swim faster than a car." ] },
+                diy: { name: '🛠️ DIY Hobbyist', imageUrl: 'diy.png', description: "You have the dexterity to create anything with the tools at hand.", info: [ "Using a lens to focus sunlight into a single point can make it hot enough to burn paper.", "Disassembling simple electronics can yield unexpected parts that can be used as fishhooks or small tools.", "Synthetic ropes like nylon melt when heated, which can be used to prevent fraying.", "Most plastics and oils are less dense than water.", "All materials can be disassembled and reassembled.", "A well-made kite can fly over 1,000 meters high." ] }
+            },
+            items: [
+                { id: 1, name: 'Sextant', uscgRank: 15, icon: '🧭', description: 'A professional navigation tool used to calculate position by measuring the angle of celestial bodies.' },
+                { id: 2, name: 'Shaving mirror', uscgRank: 1, icon: '🪞', description: 'A small hand mirror for seeing your reflection.' },
+                { id: 3, name: '20-liter can of water', uscgRank: 3, icon: '💧', description: 'A can containing 20 liters of clean, drinkable water.' },
+                { id: 4, name: 'Mosquito netting', uscgRank: 14, icon: '🕸️', description: 'A fine mesh net to keep out mosquitoes.' },
+                { id: 5, name: 'Box of emergency rations', uscgRank: 4, icon: '🥫', description: 'A supply of food designed for long-term storage.' },
+                { id: 6, name: 'Map of the South Pacific', uscgRank: 13, icon: '🗺️', description: 'A nautical chart showing depths, currents, etc., of the South Pacific.' },
+                { id: 7, name: 'Floating seat cushion', uscgRank: 9, icon: '🛟', description: 'A seat cushion made of buoyant material.' },
+                { id: 8, name: '10-liter can of oil/gas mixture', uscgRank: 2, icon: '⛽', description: 'A metal container with a mixture of oil and gasoline.' },
+                { id: 9, name: 'Small transistor radio', uscgRank: 12, icon: '📻', description: 'A small radio that can receive broadcast signals.' },
+                { id: 10, name: 'Shark repellent', uscgRank: 10, icon: '🦈', description: 'A container of chemicals that sharks dislike.' },
+                { id: 11, name: 'Opaque plastic sheet', uscgRank: 5, icon: '⬛', description: 'A large, durable, 20-square-meter sheet of opaque plastic.' },
+                { id: 12, name: 'Bottle of rum', uscgRank: 11, icon: '🍾', description: 'A bottle of 80-proof (40% alcohol) rum.' },
+                { id: 13, name: '15m of nylon rope', uscgRank: 8, icon: '🧶', description: 'A long, strong rope made of nylon.' },
+                { id: 14, name: 'Two boxes of chocolate', uscgRank: 6, icon: '🍫', description: 'Chocolate bars that can be eaten as a snack.' },
+                { id: 15, name: 'Fishing kit', uscgRank: 7, icon: '🎣', description: 'A set including a rod, reel, line, and lures.' }
+            ],
+            state: {}
+        };
+
+        const dom = {
+            appContainer: document.getElementById('app-container'),
+            rankListEl: document.getElementById('rank-list'),
+            groupRankListEl: document.getElementById('group-rank-list'),
+            itemInfoModalEl: document.getElementById('item-info-modal'),
+            itemInfoModalBodyEl: document.getElementById('item-info-modal-body'),
+            itemSelectionModalEl: document.getElementById('item-selection-modal'),
+            itemSelectionModalBodyEl: document.getElementById('item-selection-modal-body'),
+            saveShareModalEl: document.getElementById('save-share-modal'),
+            knowledgeModalEl: document.getElementById('knowledge-modal'),
+            knowledgeModalBodyEl: document.getElementById('knowledge-modal-body'),
+            alertConfirmModalEl: document.getElementById('alert-confirm-modal'),
+            alertConfirmTitle: document.getElementById('alert-confirm-title'),
+            alertConfirmMessage: document.getElementById('alert-confirm-message'),
+            alertConfirmButtons: document.getElementById('alert-confirm-buttons'),
+            emergencyScreen: document.getElementById('emergency-screen'),
+            emergencyMessageContainer: document.getElementById('emergency-message-container'),
+            proceedToGuideBtn: document.getElementById('proceed-to-guide-btn'),
+            skipEmergencyBtn: document.getElementById('skip-emergency-btn'),
+            groupNameInput: document.getElementById('groupNameInput'),
+            studentNumberInput: document.getElementById('studentNumberInput'),
+            studentNameInput: document.getElementById('studentNameInput'),
+            roleTitle: document.getElementById('role-title'),
+            knowledgeList: document.getElementById('knowledge-list'),
+            finishIndividualButton: document.getElementById('finish-individual-button'),
+            finishIndividualButtonCounter: document.getElementById('finish-individual-button-counter'),
+            finishGroupButton: document.getElementById('finish-group-button'),
+            finishGroupButtonCounter: document.getElementById('finish-group-button-counter'),
+            finalGroupName: document.getElementById('final-group-name'),
+            finalStudentNumber: document.getElementById('final-student-number'),
+            finalStudentName: document.getElementById('final-student-name'),
+            finalRole: document.getElementById('final-role'),
+            scoreSummaryContainer: document.getElementById('score-summary-container'),
+            individualScoreSummary: document.getElementById('individual-score-summary'),
+            groupScoreSummary: document.getElementById('group-score-summary'),
+            individualFinalList: document.getElementById('individual-final-list'),
+            groupFinalList: document.getElementById('group-final-list'),
+            backToStartBtn: document.getElementById('back-to-start-btn'),
+            exitAppBtn: document.getElementById('exit-app-btn'),
+            fullscreenBtn: document.getElementById('fullscreen-btn'),
+            fsEnterIcon: document.getElementById('fs-enter-icon'),
+            fsExitIcon: document.getElementById('fs-exit-icon'),
+            bgMusic: document.getElementById('bg-music'),
+        };
+        
+        // --- All Functions Defined Here ---
+        const saveState = () => {
+            try {
+                if (['welcome-screen', 'setup-screen', 'emergency-screen'].includes(appData.state.currentScreen)) return;
+
+                const saveReasons = (type) => {
+                    const rankedItems = type === 'individual' ? appData.state.rankedItems : appData.state.groupRankedItems;
+                    const listEl = type === 'individual' ? dom.rankListEl : dom.groupRankListEl;
+                    const reasonAttribute = type === 'individual' ? 'data-reason-for-item' : 'data-reason-for-group-item';
+
+                    rankedItems.forEach((itemData, index) => {
+                        if (itemData) {
+                            const textarea = listEl.querySelector(`textarea[${reasonAttribute}="${itemData.id}"]`);
+                            if (textarea) rankedItems[index].reason = textarea.value;
+                        }
+                    });
+                };
+                
+                if(appData.state.currentScreen === 'main-screen') saveReasons('individual');
+                if(appData.state.currentScreen === 'group-ranking-screen') saveReasons('group');
+
+                localStorage.setItem(SAVE_KEY, JSON.stringify({ ...appData.state, version: APP_VERSION }));
+            } catch (e) { console.error("Error saving state:", e); }
+        };
+
+        const autoSave = () => saveState();
+        
+        const getNewState = () => ({
+            currentScreen: 'setup-screen',
+            groupName: '', studentName: '', studentNumber: '',
+            selectedRole: null,
+            rankedItems: Array(15).fill(null),
+            groupRankedItems: Array(15).fill(null),
+        });
+
+        const showScreen = (screenId) => {
+            if (screenId !== 'emergency-screen') {
+                stopMusicAndClear();
+            }
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active-screen'));
+            dom.emergencyScreen.style.display = 'none';
+
+            const activeScreen = document.getElementById(screenId);
+            if (screenId === 'emergency-screen') {
+                dom.emergencyScreen.style.display = 'flex';
+                [dom.backToStartBtn, dom.exitAppBtn].forEach(btn => btn.classList.add('hidden'));
+            } else if (activeScreen) {
+                activeScreen.classList.add('active-screen');
+                const isIntro = ['welcome-screen', 'setup-screen'].includes(screenId);
+                [dom.backToStartBtn, dom.exitAppBtn].forEach(btn => btn.classList.toggle('hidden', isIntro));
+            }
+            appData.state.currentScreen = screenId;
+            if (!['welcome-screen', 'setup-screen', 'emergency-screen'].includes(screenId)) saveState();
+        };
+
+        const restartApp = () => {
+            localStorage.removeItem(SAVE_KEY);
+            window.location.reload();
+        };
+        
+        const openModal = (modalEl) => modalEl.classList.add('show');
+        const closeModal = (modalEl) => modalEl.classList.remove('show');
+
+        const showAlert = (message, title = 'Notice') => {
+            dom.alertConfirmTitle.textContent = title;
+            dom.alertConfirmMessage.textContent = message;
+            dom.alertConfirmButtons.innerHTML = `<button class="modal-ok-btn bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-6 rounded-lg">OK</button>`;
+            openModal(dom.alertConfirmModalEl);
+        };
+
+        const showConfirm = (message, onConfirm, title = 'Confirm', options = {}) => {
+            const {
+                onCancel = () => {},
+                okText = 'OK',
+                cancelText = 'Cancel',
+                okClass = 'bg-red-600 hover:bg-red-700',
+                cancelClass = 'bg-gray-500 hover:bg-gray-600'
+            } = options;
+
+            dom.alertConfirmTitle.textContent = title;
+            dom.alertConfirmMessage.textContent = message;
+            
+            const cancelBtnHTML = cancelText ? `<button class="modal-cancel-btn ${cancelClass} text-white font-bold py-2 px-6 rounded-lg">${cancelText}</button>` : '';
+            dom.alertConfirmButtons.innerHTML = `
+                ${cancelBtnHTML}
+                <button class="modal-ok-btn ${okClass} text-white font-bold py-2 px-6 rounded-lg">${okText}</button>
+            `;
+            openModal(dom.alertConfirmModalEl);
+            
+            dom.alertConfirmModalEl.querySelector('.modal-ok-btn').onclick = () => { closeModal(dom.alertConfirmModalEl); onConfirm(); };
+            if (cancelText) {
+                dom.alertConfirmModalEl.querySelector('.modal-cancel-btn').onclick = () => { closeModal(dom.alertConfirmModalEl); onCancel(); };
+            }
+        };
+
+        const updateFullscreenIcons = () => {
+            if (document.fullscreenElement) {
+                dom.fsEnterIcon.classList.add('hidden');
+                dom.fsExitIcon.classList.remove('hidden');
+            } else {
+                dom.fsEnterIcon.classList.remove('hidden');
+                dom.fsExitIcon.classList.add('hidden');
+            }
+        };
+
+        const toggleFullScreen = () => {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen().catch(err => {
+                    showAlert(`Could not start fullscreen mode: ${err.message}`);
+                });
+            } else if (document.exitFullscreen) {
+                document.exitFullscreen();
+            }
+        };
+
+        const startMission = () => {
+            appData.state.groupName = dom.groupNameInput.value.trim();
+            appData.state.studentName = dom.studentNameInput.value.trim();
+            appData.state.studentNumber = dom.studentNumberInput.value;
+            if (!appData.state.groupName || !appData.state.studentName || !appData.state.studentNumber) {
+                showAlert('Please enter/select your affiliation, number, and name!');
+                return;
+            }
+            saveState();
+            showEmergencySequence();
+        };
+        
+        const showEmergencySequence = () => {
+            showScreen('emergency-screen');
+            if (dom.bgMusic) {
+                dom.bgMusic.src = 'seastorm.mp3';
+                dom.bgMusic.play().catch(e => console.log("Music autoplay was blocked.", e));
+            }
+            dom.emergencyMessageContainer.innerHTML = '';
+            dom.proceedToGuideBtn.classList.add('hidden');
+            dom.skipEmergencyBtn.classList.remove('hidden');
+
+            let messageIndex = 0;
+            const messages = appData.getEmergencyMessages(appData.state);
+            const showNextMessage = () => {
+                if (emergencySequenceTimeoutId) clearTimeout(emergencySequenceTimeoutId);
+                if (messageIndex >= messages.length) {
+                    dom.skipEmergencyBtn.classList.add('hidden');
+                    dom.proceedToGuideBtn.classList.remove('hidden');
+                    return;
+                }
+                const p = document.createElement('p');
+                p.className = 'break-keep';
+                p.textContent = messages[messageIndex];
+                dom.emergencyMessageContainer.appendChild(p);
+                messageIndex++;
+                emergencySequenceTimeoutId = setTimeout(showNextMessage, 2200);
+            };
+            showNextMessage();
+        };
+        
+        const stopMusicAndClear = () => {
+            if (dom.bgMusic) {
+                dom.bgMusic.pause();
+                dom.bgMusic.currentTime = 0;
+                dom.bgMusic.src = '';
+            }
+        };
+
+        const skipEmergencySequence = () => {
+            if (emergencySequenceTimeoutId) clearTimeout(emergencySequenceTimeoutId);
+            const messages = appData.getEmergencyMessages(appData.state);
+            dom.emergencyMessageContainer.innerHTML = messages
+                .map(msg => `<p style="animation: none; opacity: 1;" class="break-keep">${msg}</p>`).join('');
+            dom.skipEmergencyBtn.classList.add('hidden');
+            dom.proceedToGuideBtn.classList.remove('hidden');
+        };
+
+        const selectRole = (roleId) => {
+            appData.state.selectedRole = roleId;
+            
+            showConfirm(
+                "The knowledge for your chosen role is just fragmentary information about survival.\n\nJust because a specific item is mentioned doesn't mean it's necessarily high priority; it could even be low priority.\n\nThe expert's correct ranking does not change regardless of your role. Consider the overall situation and judge carefully.",
+                () => { // onConfirm callback
+                    const role = appData.roles[roleId];
+                    dom.roleTitle.innerText = `[${role.name}]`;
+                    
+                    const roleInfoList = role.info.map(fact => `<div class="bg-slate-700 p-3 rounded break-keep">- ${fact}</div>`).join('');
+                    const itemsList = appData.items.map(item => `
+                        <div class="bg-slate-700 p-3 rounded">
+                            <p class="font-bold">${item.icon} ${item.name}</p>
+                            <p class="text-sm text-slate-400 mt-1 break-keep">${item.description}</p>
+                        </div>
+                    `).join('');
+
+                    const knowledgeScreenWarning = `
+                        <div class="mb-4 p-3 bg-yellow-900/50 border border-yellow-700 rounded-lg text-yellow-300 text-xs text-center break-keep md:col-span-2">
+                            <p><b>▲ Important:</b> Role knowledge is only <b>fragmentary information</b> about survival and does not imply a high priority for any specific item. Judge based on the overall situation.</p>
+                        </div>
+                    `;
+
+                    dom.knowledgeList.innerHTML = `
+                        ${knowledgeScreenWarning}
+                        <h4 class="text-lg font-bold text-amber-300 md:col-span-2">🧠 My Info</h4>
+                        ${roleInfoList}
+                        <hr class="border-slate-600 my-2 md:col-span-2">
+                        <h4 class="text-lg font-bold text-cyan-300 md:col-span-2">🎒 All Item Info</h4>
+                        ${itemsList}
+                    `;
+                    showScreen('knowledge-screen');
+                },
+                '▲ Important Notice',
+                {
+                    okText: 'OK',
+                    cancelText: null,
+                    okClass: 'bg-emerald-600 hover:bg-emerald-700'
+                }
+            );
+        };
+        
+        const updateFinishButtonState = (type) => {
+            const rankedItems = type === 'individual' ? appData.state.rankedItems : appData.state.groupRankedItems;
+            const button = type === 'individual' ? dom.finishIndividualButton : dom.finishGroupButton;
+            const counter = type === 'individual' ? dom.finishIndividualButtonCounter : dom.finishGroupButtonCounter;
+            
+            const itemCount = rankedItems.filter(item => item !== null).length;
+            counter.textContent = `(${itemCount}/15)`;
+            button.disabled = (itemCount !== 15);
+        };
+        
+        const renderRankingSlots = (type) => {
+            const listEl = type === 'individual' ? dom.rankListEl : dom.groupRankListEl;
+            const rankedItems = type === 'individual' ? appData.state.rankedItems : appData.state.groupRankedItems;
+            const reasonAttribute = type === 'individual' ? 'data-reason-for-item' : 'data-reason-for-group-item';
+
+            listEl.innerHTML = '';
+            rankedItems.forEach((itemData, index) => {
+                const slotEl = document.createElement('div');
+                slotEl.dataset.slotIndex = index;
+                slotEl.dataset.rankType = type;
+
+                if (itemData) {
+                    const item = appData.items.find(i => i.id === itemData.id);
+                    slotEl.className = 'rank-slot filled bg-slate-800 p-3 rounded-md';
+                    slotEl.dataset.itemId = item.id;
+                    slotEl.innerHTML = `
+                        <div class="flex items-center gap-2 mb-2">
+                            <span class="drag-handle">⠿</span>
+                            <div class="flex-1 min-w-0 font-bold text-lg text-amber-400 flex items-center pointer-events-none">
+                                <span class="rank-number mr-2">${index + 1}.</span>
+                                <span>${item.icon} ${item.name}</span>
+                            </div>
+                            <button data-info-id="${item.id}" class="text-xs bg-sky-600 hover:bg-sky-500 text-white py-1 px-2 rounded ml-auto flex-shrink-0">Info</button>
+                            <button data-clear-slot="${index}" data-clear-type="${type}" class="text-xs bg-red-600 hover:bg-red-500 text-white py-1 px-2 rounded flex-shrink-0">X</button>
+                        </div>
+                        <textarea ${reasonAttribute}="${item.id}" class="w-full bg-slate-900 text-white rounded p-2 text-sm" rows="2" placeholder="My reason for this ranking is...">${itemData.reason || ''}</textarea>
+                    `;
+                } else {
+                    slotEl.className = 'rank-slot empty bg-slate-900/50 p-3 rounded-md border-2 border-slate-700 flex items-center justify-center h-24 transition';
+                    slotEl.innerHTML = `<div class="text-center text-slate-500"><span class="font-bold text-xl">${index + 1}</span><p class="text-sm">Click to select item</p></div>`;
+                }
+                listEl.appendChild(slotEl);
+            });
+            updateFinishButtonState(type);
+        };
+        
+        const openItemSelectionModal = (slotIndex, type) => {
+            activeSelectionContext = { type, slotIndex };
+            const rankedItemIds = new Set( (type === 'individual' ? appData.state.rankedItems : appData.state.groupRankedItems).filter(Boolean).map(item => item.id) );
+            const availableItems = appData.items.filter(item => !rankedItemIds.has(item.id));
+            
+            dom.itemSelectionModalBodyEl.innerHTML = availableItems.length ? 
+                availableItems.map(item => `
+                    <button class="p-3 bg-slate-800 hover:bg-slate-700 rounded-lg text-left transition" data-item-id="${item.id}">
+                        <p class="font-bold text-lg">${item.icon} ${item.name}</p>
+                    </button>
+                `).join('') : 
+                `<p class="text-center text-slate-400 col-span-full">All items have been selected.</p>`;
+            
+            openModal(dom.itemSelectionModalEl);
+        };
+
+        const generateReport = () => {
+            dom.finalGroupName.textContent = appData.state.groupName;
+            dom.finalStudentName.textContent = appData.state.studentName;
+            dom.finalStudentNumber.textContent = `No. ${appData.state.studentNumber}`;
+            dom.finalRole.textContent = (appData.state.selectedRole && appData.roles[appData.state.selectedRole]?.name) || 'Not set';
+            
+            let groupTotalScore = 0;
+
+            const calculateScoreAndRenderList = (type) => {
+                const rankedItems = type === 'individual' ? appData.state.rankedItems : appData.state.groupRankedItems;
+                const listEl = type === 'individual' ? dom.individualFinalList : dom.groupFinalList;
+                const summaryEl = type === 'individual' ? dom.individualScoreSummary : dom.groupScoreSummary;
+                
+                let totalScore = 0;
+                listEl.innerHTML = rankedItems.map((itemData, index) => {
+                    if (!itemData) return '';
+                    const item = appData.items.find(i => i.id === itemData.id);
+                    const userRank = index + 1;
+                    totalScore += Math.abs(userRank - item.uscgRank);
+                    return `
+                        <div class="p-2 bg-slate-800 rounded-md text-sm">
+                            <p class="font-bold">${userRank}. ${item.icon} ${item.name}</p>
+                            <p class="text-sm text-slate-400 mt-1 pl-3 break-keep">Reason: ${itemData.reason || 'Not written'}</p>
+                        </div>
+                    `;
+                }).join('');
+
+                let evaluation = '';
+                if (totalScore <= 25) { evaluation = 'Survival Expert! The Coast Guard will be in touch.'; }
+                else if (totalScore <= 32) { evaluation = 'Excellent! You\'re a great companion to be stranded with.'; }
+                else if (totalScore <= 45) { evaluation = 'Close call... Hope the rescue boat comes quickly.'; }
+                else if (totalScore <= 55) { evaluation = 'Dangerous! A shark might want to be your friend...'; }
+                else { evaluation = 'Oh dear... You might end up talking to sea turtles.'; }
+                
+                summaryEl.innerHTML = `
+                    <p class="text-lg font-bold">Total Score: <span class="text-red-400">${totalScore} pts</span></p>
+                    <p class="text-base mt-1">"${evaluation}"</p>
+                `;
+                if(type === 'group') groupTotalScore = totalScore;
+            };
+
+            calculateScoreAndRenderList('individual');
+            calculateScoreAndRenderList('group');
+            
+            let resultImage = '';
+            let resultClass = '';
+            if (groupTotalScore <= 25) { resultClass = 'border-emerald-400'; resultImage = 'score_excellent.png'; } 
+            else if (groupTotalScore <= 32) { resultClass = 'border-sky-400'; resultImage = 'score_good.png'; } 
+            else if (groupTotalScore <= 45) { resultClass = 'border-yellow-400'; resultImage = 'score_average.png'; } 
+            else if (groupTotalScore <= 55) { resultClass = 'border-amber-500'; resultImage = 'score_danger.png'; } 
+            else { resultClass = 'border-red-500'; resultImage = 'score_failure.png'; }
+
+            dom.scoreSummaryContainer.innerHTML = `
+                <div class="flex flex-col md:flex-row items-center gap-4">
+                    <div class="w-32 h-32 md:w-40 md:h-40 flex-shrink-0">
+                        <img id="result-image" src="${resultImage}" alt="Result image" class="w-full h-full object-cover rounded-lg bg-slate-700" onerror="this.onerror=null;this.src='https://placehold.co/160x160/1e293b/94a3b8?text=Image+Error';">
+                    </div>
+                    <div class="text-center md:text-left">
+                        <p class="text-xl sm:text-2xl font-bold">Team Total Score: <span class="text-red-400">${groupTotalScore} pts</span></p>
+                        <p class="text-slate-400 text-sm">(Lower is better for survival)</p>
+                    </div>
+                </div>
+            `;
+            dom.scoreSummaryContainer.className = `p-4 rounded-lg border-2 transition-colors duration-500 ${resultClass}`;
+
+            showScreen('report-screen');
+        };
+
+        const openKnowledgeModal = () => {
+            if (!appData.state.selectedRole) return;
+            const role = appData.roles[appData.state.selectedRole];
+            
+            const warningHTML = `
+                <div class="mb-4 p-3 bg-yellow-900/50 border border-yellow-700 rounded-lg text-yellow-300 text-sm break-keep">
+                    <p><b>▲ Important:</b> Role knowledge is only <b>fragmentary information</b> about survival and does not imply a high priority for any specific item. Judge based on the overall situation.</p>
+                </div>
+            `;
+
+            const roleInfoList = role.info.map(fact => `<div class="bg-slate-700 p-3 rounded break-keep">- ${fact}</div>`).join('');
+            const itemsList = appData.items.map(item => `
+                <div class="bg-slate-700 p-3 rounded">
+                    <p class="font-bold">${item.icon} ${item.name}</p>
+                    <p class="text-sm text-slate-400 mt-1 break-keep">${item.description}</p>
+                </div>
+            `).join('');
+
+            dom.knowledgeModalBodyEl.innerHTML = `
+                <h3 class="text-2xl font-bold mb-4 text-center">Review Info</h3>
+                <div class="max-h-[60vh] overflow-y-auto p-2 space-y-4">
+                    ${warningHTML}
+                    <div>
+                        <h4 class="text-lg font-bold text-amber-300 mb-2">🧠 [${role.name}] My Info</h4>
+                        <div class="space-y-2">${roleInfoList}</div>
+                    </div>
+                    <hr class="border-slate-600 my-4">
+                    <div>
+                        <h4 class="text-lg font-bold text-cyan-300 mb-2">🎒 All Item Info</h4>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">${itemsList}</div>
+                    </div>
+                </div>
+            `;
+            openModal(dom.knowledgeModalEl);
+        };
+        
+        const restoreSession = () => {
+            try {
+                const savedStateJSON = localStorage.getItem(SAVE_KEY);
+                if (!savedStateJSON) return false;
+                
+                const savedState = JSON.parse(savedStateJSON);
+                 if (savedState.version !== APP_VERSION) {
+                     localStorage.removeItem(SAVE_KEY);
+                     return false;
+                 }
+
+                appData.state = savedState;
+                dom.groupNameInput.value = appData.state.groupName || '';
+                dom.studentNumberInput.value = appData.state.studentNumber || '';
+                dom.studentNameInput.value = appData.state.studentName || '';
+
+                const screenToRestore = appData.state.currentScreen;
+                showScreen(screenToRestore);
+
+                if (screenToRestore === 'main-screen') renderRankingSlots('individual');
+                if (screenToRestore === 'group-ranking-screen') renderRankingSlots('group');
+                if (screenToRestore === 'report-screen') generateReport();
+
+                return true;
+            } catch (e) {
+                localStorage.removeItem(SAVE_KEY);
+                return false;
+            }
+        };
+
+        const generateReportCanvas = () => {
+            const reportContent = document.getElementById('report-content');
+            
+            const individualList = document.getElementById('individual-final-list');
+            const groupList = document.getElementById('group-final-list');
+            const oldIndividualHeight = individualList.style.maxHeight;
+            const oldGroupHeight = groupList.style.maxHeight;
+            individualList.style.maxHeight = 'none';
+            groupList.style.maxHeight = 'none';
+            individualList.style.overflow = 'visible';
+            groupList.style.overflow = 'visible';
+
+            return new Promise((resolve) => {
+                html2canvas(reportContent, { 
+                    backgroundColor: "#030712",
+                    onclone: (doc) => { doc.getElementById('report-content').style.color = '#e6f1ff'; }
+                }).then(canvas => {
+                    individualList.style.maxHeight = oldIndividualHeight;
+                    groupList.style.maxHeight = oldGroupHeight;
+                    individualList.style.overflow = 'auto';
+                    groupList.style.overflow = 'auto';
+                    resolve(canvas);
+                });
+            });
+        };
+        
+        const downloadReport = () => {
+             generateReportCanvas().then(canvas => {
+                const link = document.createElement('a');
+                const groupName = appData.state.groupName || 'NoGroup';
+                const studentNumber = appData.state.studentNumber || '00';
+                const studentName = appData.state.studentName || 'NoName';
+                link.download = `SeaSurvival_${groupName}_No${studentNumber}_${studentName}.png`;
+                link.href = canvas.toDataURL('image/png');
+                link.click();
+            });
+        };
+
+        const shareReport = async () => {
+            try {
+                const canvas = await generateReportCanvas();
+                canvas.toBlob(async (blob) => {
+                    const groupName = appData.state.groupName || 'NoGroup';
+                    const studentNumber = appData.state.studentNumber || '00';
+                    const studentName = appData.state.studentName || 'NoName';
+                    const fileName = `SeaSurvival_${groupName}_No${studentNumber}_${studentName}.png`;
+                    const file = new File([blob], fileName, { type: 'image/png' });
+
+                    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                        await navigator.share({
+                            files: [file],
+                            title: 'My Sea Survival Report',
+                            text: 'We survived at sea! Check out our team\'s score!',
+                        });
+                    } else {
+                        showAlert('Sharing is not supported on this browser.', 'Notice');
+                    }
+                }, 'image/png');
+            } catch (error) {
+                console.error('Sharing error:', error);
+                showAlert('An error occurred while sharing the image.', 'Error');
+            }
+        };
+
+        const handleBodyClick = (event) => {
+            const target = event.target;
+            const roleCard = target.closest('.role-card');
+            const emptySlot = target.closest('.rank-slot.empty');
+            const infoButton = target.closest('[data-info-id]');
+            const clearButton = target.closest('[data-clear-slot]');
+            const itemSelectionButton = target.closest('#item-selection-modal-body button');
+            const modalClose = target.closest('.close-modal-btn') || (target.classList.contains('modal-base') && !target.querySelector('.modal-content')) || target.closest('.modal-ok-btn') || target.closest('.modal-cancel-btn');
+
+            const actions = {
+                'start-class-btn': () => {
+                    if (localStorage.getItem(SAVE_KEY)) {
+                        showConfirm(
+                            'Do you want to continue your saved progress?',
+                            () => { // onConfirm -> Continue
+                                if (!restoreSession()) {
+                                    showAlert("Could not load saved data. Starting new.", "Error");
+                                    restartApp();
+                                }
+                            },
+                            'Progress Found',
+                            { 
+                                onCancel: () => { // onCancel -> Start New
+                                    appData.state = getNewState();
+                                    showScreen('setup-screen');
+                                },
+                                okText: 'Continue',
+                                cancelText: 'Start New',
+                                okClass: 'bg-green-600 hover:bg-green-700',
+                                cancelClass: 'bg-red-600 hover:bg-red-700'
+                            }
+                        );
+                    } else {
+                        appData.state = getNewState();
+                        showScreen('setup-screen');
+                    }
+                },
+                'start-mission-btn': startMission,
+                'skip-emergency-btn': () => { stopMusicAndClear(); skipEmergencySequence(); },
+                'proceed-to-guide-btn': () => { stopMusicAndClear(); showScreen('activity-guide-screen'); },
+                'go-to-role-selection-btn': () => showScreen('role-screen'),
+                'go-to-ranking-btn': () => { showScreen('main-screen'); renderRankingSlots('individual'); },
+                'finish-individual-button': () => { autoSave(); showScreen('discussion-guide-screen'); },
+                'go-to-group-ranking-btn': () => { showScreen('group-ranking-screen'); renderRankingSlots('group'); },
+                'finish-group-button': () => { autoSave(); generateReport(); },
+                'open-knowledge-modal-btn': openKnowledgeModal,
+                'open-knowledge-modal-btn-group': openKnowledgeModal,
+                'back-to-start-btn': () => showConfirm('All your progress will be lost. Are you sure you want to start over?', restartApp, 'Start Over', { okText: 'OK', cancelText: 'Cancel' }),
+                'exit-app-btn': () => showConfirm('Are you sure you want to exit? Your progress will be saved.', () => window.close(), 'Exit', { okText: 'Exit', cancelText: 'Cancel' }),
+                'restart-btn': () => showConfirm('Are you sure you want to delete all progress and start over?', restartApp, 'Restart', { okText: 'Restart', cancelText: 'Cancel' }),
+                'open-save-share-modal-btn': () => openModal(dom.saveShareModalEl),
+                'save-image-btn': () => { closeModal(dom.saveShareModalEl); downloadReport(); },
+                'share-image-btn': () => { closeModal(dom.saveShareModalEl); shareReport(); },
+            };
+
+            if (actions[target.id]) {
+                actions[target.id]();
+            } else if (roleCard) {
+                selectRole(roleCard.dataset.role);
+            } else if (emptySlot) {
+                openItemSelectionModal(parseInt(emptySlot.dataset.slotIndex, 10), emptySlot.dataset.rankType);
+            } else if (infoButton) {
+                const item = appData.items.find(i => i.id == infoButton.dataset.infoId);
+                if (item) {
+                    dom.itemInfoModalBodyEl.innerHTML = `<h3 class="text-2xl font-bold mb-4">${item.icon} ${item.name}</h3><p class="break-keep">${item.description || 'No information'}</p>`;
+                    openModal(dom.itemInfoModalEl);
+                }
+            } else if (clearButton) {
+                const slotIndex = parseInt(clearButton.dataset.clearSlot, 10);
+                const type = clearButton.dataset.clearType;
+                const rankedItems = type === 'individual' ? appData.state.rankedItems : appData.state.groupRankedItems;
+                rankedItems[slotIndex] = null;
+                renderRankingSlots(type);
+                autoSave();
+            } else if (itemSelectionButton) {
+                const { type, slotIndex } = activeSelectionContext;
+                const rankedItems = type === 'individual' ? appData.state.rankedItems : appData.state.groupRankedItems;
+                rankedItems[slotIndex] = { id: parseInt(itemSelectionButton.dataset.itemId, 10), reason: '' };
+                closeModal(dom.itemSelectionModalEl);
+                renderRankingSlots(type);
+                autoSave();
+            } else if (modalClose) {
+                closeModal(target.closest('.modal-base'));
+            }
+        };
+        
+        const initialize = () => {
+            for (let i = 1; i <= 40; i++) {
+                const opt = document.createElement('option');
+                opt.value = String(i).padStart(2, '0');
+                opt.textContent = `No. ${i}`;
+                dom.studentNumberInput.appendChild(opt);
+            }
+
+            const roleContainer = document.querySelector('#role-screen .grid');
+            roleContainer.innerHTML = Object.keys(appData.roles).map(key => {
+                const role = appData.roles[key];
+                return `
+                    <div data-role="${key}" class="role-card bg-slate-800 p-3 sm:p-4 rounded-lg text-center cursor-pointer hover:bg-slate-700 hover:scale-105 transition-all overflow-hidden">
+                        <img src="${role.imageUrl}" alt="${role.name}" class="w-full aspect-square object-cover" onerror="this.onerror=null;this.src='https://placehold.co/400x400/1e293b/94a3b8?text=Image+Error';">
+                        <div class="p-2 sm:p-4">
+                           <h3 class="text-lg sm:text-xl font-bold">${role.name}</h3>
+                           <p class="text-slate-400 text-sm break-keep mt-1">${role.description}</p>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            dom.fullscreenBtn.addEventListener('click', toggleFullScreen);
+            document.addEventListener('fullscreenchange', updateFullscreenIcons);
+            document.body.addEventListener('click', handleBodyClick);
+            
+            ['groupNameInput', 'studentNameInput', 'studentNumberInput'].forEach(id => {
+                dom[id].addEventListener('input', () => { appData.state[id.replace('Input','')] = dom[id].value; });
+            });
+            dom.rankListEl.addEventListener('input', (e) => { if(e.target.matches('textarea')) autoSave(); });
+            dom.groupRankListEl.addEventListener('input', (e) => { if(e.target.matches('textarea')) autoSave(); });
+            
+            new Sortable(dom.rankListEl, { animation: 150, handle: '.drag-handle', onEnd: (evt) => {
+                const itemData = appData.state.rankedItems.splice(evt.oldIndex, 1)[0];
+                appData.state.rankedItems.splice(evt.newIndex, 0, itemData);
+                renderRankingSlots('individual');
+                autoSave();
+            }});
+            new Sortable(dom.groupRankListEl, { animation: 150, handle: '.drag-handle', onEnd: (evt) => {
+                const itemData = appData.state.groupRankedItems.splice(evt.oldIndex, 1)[0];
+                appData.state.groupRankedItems.splice(evt.newIndex, 0, itemData);
+                renderRankingSlots('group');
+                autoSave();
+            }});
+            
+            appData.state = getNewState();
+            showScreen('welcome-screen');
+            updateFullscreenIcons();
+            setInterval(saveState, 30000);
+            window.addEventListener('beforeunload', saveState);
+            document.addEventListener('visibilitychange', () => { if (document.hidden) saveState(); });
+        };
+        
+        initialize();
+    })();
+    </script>
+</body>
+</html>
